@@ -1,0 +1,445 @@
+---
+title: "Współczynnik samobójstw"
+author: "Hytry"
+format: html
+editor: visual
+---
+
+# Wczytywanie bibliotek:
+
+```{r}
+library(readxl)
+library(htmlwidgets)
+library(lubridate)
+library(plotly)
+library(tidyverse)
+library(dplyr)
+library(scales)
+library(data.table)
+library(ggrepel)
+```
+
+# Wczytywanie i zapisanie danych jako obiekt typu `data.frame`.
+
+```{r}
+suicides<-read.csv("sciezka/Dataset.csv")
+unemployment<- read.csv("sciezka7/API_SL.UEM.TOTL.ZS_DS2_en_csv_v2_4700967.csv")
+
+```
+
+# Czyszczenie, transformowanie itp.
+
+```{r}
+names(suicides)<-tolower(names(suicides))#zmieniam wielkość liter nazw kolumn
+
+suicides<-suicides |> #zmieniam nazwy kolumn i opuszczam kolumnę countrycode
+  transmute(country=countryname,
+            gdp2000=gdp_percapita_2000.us.,
+            sui2000=suiciderate_2000,
+            gdp2005=gdp_percapita_2005.us.,
+            sui2005=suiciderate_2005,
+            gdp2010=gdp_percapita_2010.us.,
+            sui2010=suiciderate_2010,
+            gdp2015=gdp_percapita_2015.us.,
+            sui2015=suiciderate_2015,
+            gdp2016=gdp_percapita_2016.us.,
+            sui2016=suiciderate_2016)
+
+suicides <- suicides |> #odrzucam obesrwacje, w których jakieś dane nie zostały podane (7 państw)
+  drop_na()
+
+unm <- unemployment |> 
+  transmute(country=Country.Name,unm2000=X2000, unm2005=X2005, unm2010=X2010, unm2015=X2015, unm2016=X2016) |> 
+  filter(!is.na(unm2000))
+
+
+#Tworzenie transponowanej ramki danych (date, country, gdp, sui, unm):
+
+country_list <- list()
+countries1 <- unique(suicides$country)
+
+for(i in 1:length(countries1)){
+  
+    country_list[[i]] <- suicides[i,]
+    
+}
+
+country_list1 <- list()
+i = 1
+for(df in country_list){
+  b<- df |> 
+  select(starts_with("g")) |> 
+  t() |> as.data.frame()
+  
+  colnames(b) <- c("gdp")
+  
+  c<- df |> 
+    select(starts_with("s")) |> 
+    t() |> as.data.frame()
+  
+  d<- cbind.data.frame(b,c)
+  
+  date<-c(2000,2005,2010,2015,2016)
+  
+  e <- cbind.data.frame(d,date)
+  
+  f <- c(rep(df$country,5))
+  
+  country_list1[[i]] <- cbind.data.frame(e,f)
+  colnames(country_list1[[i]]) <- c("gdp","sui","date","country")
+  i = i + 1}
+
+
+countries <- country_list1[[1]]
+dx = 2
+  while (dx<length(country_list1)){
+    countries <- rbind(countries, country_list1[[dx+1]])
+    dx = dx + 1
+  }
+
+country_list2 <- list()
+countries2 <- unique(unm$country)
+
+for(i in 1:length(countries2)){
+    country_list2[[i]] <- unm[i,]
+}
+
+
+i = 1
+for(df in country_list2){
+  d<- df |> 
+  select(starts_with("unm")) |> 
+  t() |> as.data.frame()
+  
+  date<-c(2000,2005,2010,2015,2016)
+  
+  e <- cbind.data.frame(d,date)
+  
+  f <- c(rep(df$country,5))
+  
+  country_list2[[i]] <- cbind.data.frame(e,f)
+  colnames(country_list2[[i]]) <- c("unm","date","country")
+  i = i + 1
+  }
+
+countries2 <- country_list2[[1]]
+dx = 2
+  while (dx<length(country_list2)){
+    countries2 <- rbind(countries2, country_list2[[dx+1]])
+    dx = dx + 1
+  }
+
+countries <- merge.data.table(countries, countries2, by=.EACHI, all.x=T)
+countries <- countries |> 
+  filter(!is.na(unm))
+
+```
+
+## Maksymalna, minimalna i średnia wartość PKB pc dla każdego analizowanego roku.
+
+```{r}
+(max_gdp2000 <- suicides |>
+  select(country, gdp2000) |> 
+  filter(gdp2000==max(gdp2000)))
+
+(max_gdp2005 <- suicides |> 
+    select(country, gdp2005) |> 
+    filter(gdp2005==max(gdp2005)))
+
+(max_gdp2010 <- suicides |> 
+    select(country, gdp2010) |> 
+    filter(gdp2010==max(gdp2010)))
+
+(max_gdp2015 <- suicides |> 
+    select(country, gdp2015) |> 
+    filter(gdp2015==max(gdp2015)))
+
+(max_gdp2016 <- suicides |> 
+    select(country, gdp2016) |> 
+    filter(gdp2016==max(gdp2016)))
+
+(min_gdp2000 <- suicides |> 
+    select(country, gdp2000) |> 
+    filter(gdp2000==min(gdp2000)))
+
+(min_gdp2005 <- suicides |> 
+    select(country, gdp2005) |> 
+    filter(gdp2005==min(gdp2005)))
+
+(min_gdp2010 <- suicides |> 
+    select(country, gdp2010) |> 
+    filter(gdp2010==min(gdp2010)))
+
+(min_gdp2015 <- suicides |> 
+    select(country, gdp2015) |> 
+    filter(gdp2015==min(gdp2015)))
+
+(min_gdp2016 <- suicides |> 
+    select(country, gdp2016) |> 
+    filter(gdp2016==min(gdp2016)))
+
+(mean_gdp2000 <- mean(na.omit(suicides$gdp2000)))
+(mean_gdp2005 <- mean(na.omit(suicides$gdp2005)))
+(mean_gdp2010 <- mean(na.omit(suicides$gdp2010)))
+(mean_gdp2015 <- mean(na.omit(suicides$gdp2015)))
+(mean_gdp2016 <- mean(na.omit(suicides$gdp2016)))
+
+countries1 <- c(max_gdp2000$country, max_gdp2005$country, max_gdp2010$country, max_gdp2015$country, max_gdp2016$country)
+
+gdp_pc_max <- c(max_gdp2000$gdp2000, max_gdp2005$gdp2005, max_gdp2010$gdp2010, max_gdp2015$gdp2015, max_gdp2016$gdp2016)
+
+countries2 <- c(min_gdp2000$country, min_gdp2005$country, min_gdp2010$country, min_gdp2015$country, min_gdp2016$country)
+
+gdp_pc_min <- c(min_gdp2000$gdp2000, min_gdp2005$gdp2005, min_gdp2010$gdp2010, min_gdp2015$gdp2015, min_gdp2016$gdp2016)
+
+gdp_pc_mean <- c(mean_gdp2000, mean_gdp2005, mean_gdp2010, mean_gdp2015, mean_gdp2016)
+
+years <- c("2000", "2005", "2010", "2015", "2016")
+
+pkb_pc <- data.frame(country_max=countries1, gdp_max=gdp_pc_max, country_min=countries2, gdp_min=gdp_pc_min, years=years, gdp_mean=gdp_pc_mean)
+
+
+```
+
+## Maksymalna, minimalna i średnia wartość dla wskaźnika samobójstw dla każdego analizowanego roku.
+
+```{r}
+(max_sui2000 <- suicides |>
+  select(country, sui2000) |> 
+  filter(sui2000==max(sui2000)))
+
+(max_sui2005 <- suicides |> 
+    select(country, sui2005) |> 
+    filter(sui2005==max(sui2005)))
+
+(max_sui2010 <- suicides |> 
+    select(country, sui2010) |> 
+    filter(sui2010==max(sui2010)))
+
+(max_sui2015 <- suicides |> 
+    select(country, sui2015) |> 
+    filter(sui2015==max(sui2015)))
+
+(max_sui2016 <- suicides |> 
+    select(country, sui2016) |> 
+    filter(sui2016==max(sui2016)))
+
+(min_sui2000 <- suicides |> 
+    select(country, sui2000) |> 
+    filter(sui2000==min(sui2000)))
+
+(min_sui2005 <- suicides |> 
+    select(country, sui2005) |> 
+    filter(sui2005==min(sui2005)))
+
+(min_sui2010 <- suicides |> 
+    select(country, sui2010) |> 
+    filter(sui2010==min(sui2010)))
+
+(min_sui2015 <- suicides |> 
+    select(country, sui2015) |> 
+    filter(sui2015==min(sui2015)))
+
+(min_sui2016 <- suicides |> 
+    select(country, sui2016) |> 
+    filter(sui2016==min(sui2016)))
+
+(mean_sui2000 <- mean(na.omit(suicides$sui2000)))
+(mean_sui2005 <- mean(na.omit(suicides$sui2005)))
+(mean_sui2010 <- mean(na.omit(suicides$sui2010)))
+(mean_sui2015 <- mean(na.omit(suicides$sui2015)))
+(mean_sui2016 <- mean(na.omit(suicides$sui2016)))
+
+countries1 <- c(max_sui2000$country, max_sui2005$country, max_sui2010$country, max_sui2015$country, max_sui2016$country)
+
+sui_max <- c(max_sui2000$sui2000, max_sui2005$sui2005, max_sui2010$sui2010, max_sui2015$sui2015, max_sui2016$sui2016)
+
+countries2 <- c(min_sui2000$country, min_sui2005$country, min_sui2010$country, min_sui2015$country, min_sui2016$country)
+
+sui_min <- c(min_sui2000$sui2000, min_sui2005$sui2005, min_sui2010$sui2010, min_sui2015$sui2015, min_sui2016$sui2016)
+
+sui_mean <- c(mean_sui2000, mean_sui2005, mean_sui2010, mean_sui2015, mean_sui2016)
+
+years <- c("2000", "2005", "2010", "2015", "2016")
+
+sui <- data.frame(country_max_sui=countries1, sui_max=sui_max, country_min_sui=countries2, sui_min=sui_min, years=years, sui_mean=sui_mean)
+```
+
+### Wykresy dla wskaźnika samobójstw w okresie 2000-2016.
+
+```{r}
+sui_max_plot <- ggplot(data = sui, aes(years, sui_max, fill=country_max_sui))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lata", y = "Wskaźnik samobójstw", title = "Najwyższy wskaźnik samobójstw w okresie 2000-2016",caption = "Źródło: Opracowanie własne.")
+ggplotly(sui_max_plot)
+
+sui_min_plot <- ggplot(data = sui, aes(years, sui_min,fill=country_min_sui))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lata", y = "Wskaźnik samobójstw", title = "Najniższy wskaźnik samobójstw w okresie 2000-2016",caption = "Źródło: Opracowanie własne.")
+ggplotly(sui_min_plot)
+
+sui_mean_plot <- ggplot(data = sui, aes(years, sui_mean,fill=sui_mean))+
+  geom_bar(stat="identity")+
+  theme(legend.position = "none")+
+  labs(x = "Lata", y = "Wskaźnik samobójstw", title = "Przeciętny wskaźnik samobójstw w okresie 2000-2016", caption = "Źródło: Opracowanie własne.")
+ggplotly(sui_mean_plot)
+
+```
+
+### Wykresy dla poziomu PKB pc w okresie 2000-2016.
+
+```{r}
+pkb_pc2 <- data.frame(country=c(countries1, countries2), gdp=c(gdp_pc_max, gdp_pc_min), year=rep(years,2), gdp_mean=rep(gdp_pc_mean,2))
+
+
+gdp_max_plot <- ggplot(data = pkb_pc, aes(years, gdp_max, fill=gdp_max))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lata", y = "PKB pc", title = "WYK1: Maksymlane PKB per capita w okresie 2000-2016. [Luksemburg]",caption = "Źródło: Opracowanie własne.")
+ggplotly(gdp_max_plot)
+
+gdp_min_plot <- ggplot(data = pkb_pc, aes(years, gdp_min, fill=gdp_min, label=country_min))+
+  geom_bar(stat = "identity")+
+  labs(x = "Lata", y = "PKB pc", title = "WYK2: Minimalne PKB per capita w okresie 2000-2016. [Ethiopia, Burundi]",caption = "Źródło: Opracowanie własne.")
+ggplotly(gdp_min_plot)
+
+gdp_mean_plot <- ggplot(data = pkb_pc, aes(years, gdp_mean,fill=gdp_mean))+
+  geom_bar(stat="identity")+
+  labs(x = "Lata", y = "PKB pc", title = "WYK3: Przeciętny PKB per capita w okresie 2000-2016", caption = "Źródło: Opracowanie własne.")
+ggplotly(gdp_mean_plot)
+```
+
+### Wykresy przedstawiające zależność między wskaźnikiem samobójstw a stopą bezrobocia, z uwzględnieniem PKB pc.
+
+```{r}
+#Aktualnie pakiet plotly nie jest kompatybilny z niektórymi funkcjami innych pakietów. Przy wywoływaniu wykresu z pakietu ggplot, nie pokazuje się legenda ani oznaczenia dla drugiej osi y.
+#W funkcji labs nie działa ustawianie subtitle i np. tag.
+#Pakiet ggrepel nie jest kompatybilny z wykresami wywoływanymi w pakiecie plotly.
+
+pkt3_overall <- countries |> 
+ggplot(aes(sui,unm, size=gdp, color=country, label=date))+
+  geom_point(alpha=0.5)+
+  labs( title = "WYK4: Zależność między wskaźnikiem samobójstw a stopą bezrobcia",
+        x="Wskaźnik samobójstw", 
+        y="Stopa bezrobocia")+
+  theme_bw()+
+  theme(legend.position = "none",
+        plot.title = element_text(size = 10, face = "bold.italic"))+
+  geom_smooth(aes(group=1),method = )
+
+ggplotly(pkt3_overall)
+
+
+#to samo ale dla poszczegolnych lat
+pkt3 <- countries |> 
+ggplot(aes(sui,unm, color=country, size=gdp))+
+  geom_point(alpha=0.5)+
+   labs( title = "WYK5: Zależność między wskaźnikiem samobójstw a stopą bezrobocia dla poszczególnych lat, o rozmiarze kropki decyduje poziom PKB pc", 
+        x="Wskaźnik samobójstw", 
+        y="Stopa bezrobocia")+
+  theme_bw()+
+  theme(legend.position = "none",
+        plot.title = element_text(size = 10, face = "bold.italic"))+
+  geom_smooth(aes(group=1),method = )+
+  facet_wrap(~date, 5)
+
+pkt3 |> 
+  plotly::ggplotly(width = 780,height = 2000)
+
+pkt4_sui <- countries |> 
+  filter(country=="Madagascar"|country=="Mozambique"|country=="Niger"|country=="Malawi"|country=="Burundi"|country=="Luxembourg"|country=="Switzerland"|country=="Norway"|country=="Ireland"|country=="Iceland"  ) |> 
+  mutate(country=fct_reorder(country, gdp)) |> 
+  ggplot(aes(date,sui,fill=gdp, label=unm))+
+  geom_col()+
+  theme_bw()+
+  labs(title = "WYK6: Wskaźnik samobójstw na przestrzeni lat.",
+       y="Wskaźnik samobójstw",
+       x="Lata")+
+ theme(plot.title = element_text(size = 10, face = "bold.italic"))+
+  facet_wrap(~country,5)
+
+pkt4_sui |> 
+  plotly::ggplotly(width = 780,height = 500)
+
+
+  korelacja_gdp_sui <- cor(countries$gdp,countries$sui, method="pearson")
+ korelacja_unm_sui <- cor(countries$unm,countries$sui, method="pearson")
+  korelacje <- cbind(korelacja_gdp_sui,korelacja_unm_sui) |> 
+    print()
+```
+
+### Wykres przedstawiający dwie krzywe na osi y \[wskaźnik samobójstw, stopa bezrobocia\], względem poziomu PKB pc \[oś x\].
+
+```{r}
+wyk2 <- countries |> 
+  ggplot(aes(gdp))+
+  geom_line(aes(y=sui, label=country))+
+  geom_line(aes(y=unm,color="red", alpha=0.5, label=country))+
+  facet_wrap(~date,5)+
+ theme_bw()+
+  scale_x_continuous(label=dollar_format())+
+  theme(
+  plot.title = element_text(size = 10, face = "bold.italic"))+
+  labs(title = "WYK7: Krzywa wskaźnika samobójstw i stopy bezrobocia, względem PKB PC",
+        x="PKB pc",
+        y="Wskaźnik samobójstw i Stopa bezrobocia")+
+  theme(legend.position = "none")
+wyk2 |> 
+plotly::ggplotly(width = 780,height = 2300)
+```
+
+### Wykresy przedstawiające dwie krzywe na osi y \[wskaźnik samobójstw, PKB pc\], w okresie 2000-2016, dla pięciu najbiedniejszych i najbogatszych państw w 2016 roku.
+
+```{r}
+#sprawdzam jakie państwa w 2016 miały najwieksze pkb pc i najmniejsze
+max_2016 <- countries |> filter(date==2016) |> 
+  arrange(desc(gdp)) |> 
+  head(5) |> as.data.frame()
+  
+min_2016 <- countries |> filter(date==2016) |> 
+  arrange(desc(gdp)) |> 
+  tail(5) |> as.data.frame() 
+maxmin_2016 <- rbind(max_2016,min_2016)
+#Max: Luxembourg Switzerland Norway Ireland Iceland
+#Min: Madagascar Mozambique Niger Malawi Burundi
+
+#Niestety na moment tworzenia analizy pakiet plotly nie jest kompatybilny z wykresami zawierające dwie odrębne osie Y
+
+countries |> 
+  filter(country=="Luxembourg"|country=="Switzerland"|country=="Norway"|country=="Ireland"|country=="Iceland" ) |> 
+  mutate(country=fct_reorder(country, gdp)) |>
+ggplot(aes(date))+
+  geom_line(aes(y=gdp, color = "PKB pc"))+
+  geom_line(aes(y=sui*4000, color = "Wskaźnik samobójstw"))+
+    theme(plot.title = element_text(size = 10, face = "bold.italic"))+
+  labs(title = "Krzywa wskaźnika samobójstw i stopy bezrobocia, względem PKB PC",
+        x="Lata",
+        y="PKB pc",
+        tag="WYK8:",
+        subtitle="Pięć najbiedniejszych państw.")+
+  scale_y_continuous(labels = dollar_format(),
+    sec.axis = sec_axis(~./4000, name="Wskaźnik samobójstw")
+  )+
+  scale_color_manual(name = "Legenda", values = c("PKB pc" = "darkblue", "Wskaźnik samobójstw" = "red"))+
+  theme_bw()+
+  facet_wrap(~country)
+
+
+countries |> 
+  filter(country=="Madagascar"|country=="Mozambique"|country=="Niger"|country=="Malawi"|country=="Burundi" ) |> 
+  mutate(country=fct_reorder(country, gdp)) |> 
+ggplot(aes(date))+
+  geom_line(aes(y=gdp, color = "PKB pc"))+
+  geom_line(aes(y=sui*40, color = "Wskaźnik samobójstw"))+
+    theme(plot.title = element_text(size = 10, face = "bold.italic"))+
+  labs(title = "Krzywa wskaźnika samobójstw i stopy bezrobocia, względem PKB PC",
+        x="Lata",
+        y="PKB pc",
+        tag="WYK7:",
+        subtitle="Pięć najbiedniejszych państw.")+
+  scale_y_continuous(labels = dollar_format(),
+    sec.axis = sec_axis(~./40, name="Wskaźnik samobójstw")
+  )+
+  scale_color_manual(name = "Legenda", values = c("PKB pc" = "darkblue", "Wskaźnik samobójstw" = "red"))+
+  theme_bw()+
+  facet_wrap(~country)
+```
