@@ -1,0 +1,158 @@
+---
+title: "Thanksgiving"
+format: html
+editor: visual
+---
+
+## lib
+
+```{r}
+library(ggraph)
+library(igraph)
+library(widyr)
+library(tidyverse)
+library(lubridate)
+library(scales)
+library(plotly)
+```
+
+## data
+
+```{r}
+thanksgiving <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-11-20/thanksgiving_meals.csv")
+```
+
+## cleaning
+
+```{r}
+  
+thanksgiving <- thanksgiving |> 
+mutate_if(is.character,.funs = tolower)
+
+thanksgiving |> 
+  ggplot(aes(age, fill=gender))+
+  geom_bar()
+
+thanksgiving <- thanksgiving |>#sztuczka magiczna nadchodzi:
+  mutate(family_income=fct_reorder(family_income, parse_number(family_income)))
+  
+
+thanksgiving |> 
+  count(family_income)
+
+thanksgiving |> 
+  filter(family_income!="prefer not to answer", family_income!="NA") |> 
+  filter(cranberry %in% c("canned","homemade")) |> 
+  group_by(family_income) |> 
+  summarise(homemade=sum(cranberry=="homemade"),
+            total=n(),
+            low= qbeta(0.025, homemade + .5, total-homemade + .5),
+            high=qbeta(0.975,homemade+.5,total-homemade+.5)) |> 
+  ggplot(aes(family_income,homemade/total,group=1))+
+  geom_line()+
+  geom_ribbon(aes(ymin=low,ymax=high),alpha=.2)+
+  theme(axis.text.x = element_text(angle=45,hjust = 1,vjust = 1))+
+  labs(title = "relation between income and homemade cranberry dressing")
+
+
+thanksgiving |> 
+  filter(family_income!="prefer not to answer", family_income!="NA") |> 
+  group_by(family_income) |> 
+  summarise(celebrate=sum(celebrate=="yes"),
+            total=n(),
+            low= qbeta(0.025, celebrate + .5, total-celebrate + .5),
+            high=qbeta(0.975,celebrate+.5,total-celebrate+.5)) |> 
+  ggplot(aes(family_income,celebrate/total,group=1))+
+  geom_line()+
+  geom_ribbon(aes(ymin=low,ymax=high),alpha=.2)+
+  theme(axis.text.x = element_text(angle=45,hjust = 1,vjust = 1))+
+  labs(title = "relation between income and celebrating thanksgiving")
+
+```
+
+```{r}
+foodgathered <- thanksgiving |>
+  select(id,starts_with("side"), starts_with("pie"),starts_with("dessert")) |> 
+  select(-pie13,-side15,-dessert12) |> 
+  gather(type,value,-id) |> 
+  filter(!is.na(value),
+         value!="other (please specify)",value!="none") |> 
+  mutate(type=str_remove(type, "\\d+"))
+
+n_respondents <- n_distinct(foodgathered$id)
+  
+
+foodgathered |> 
+  count(type, value, sort = T) |> 
+  mutate(value=fct_reorder(value,n)) |> 
+  ggplot(aes(value,n/n_respondents,fill=type))+
+  geom_col()+
+  coord_flip()+
+   scale_y_continuous(labels = scales::percent_format())+
+  facet_wrap(~type,3, scales = "free",ncol = 1)
+```
+
+## How do the servings differ by income/age
+
+```{r}
+foodgathered |> 
+  inner_join(thanksgiving, by="id")  |> 
+  mutate(age_num=parse_number(age)) |> 
+  group_by(value) |> 
+  summarise(avg_age=mean(age_num,na.rm = T),
+            total=n()) |> 
+  arrange(desc(avg_age)) |> 
+  ggplot(aes(value,avg_age))+
+  geom_col()+
+  coord_flip()
+
+food_reg <- foodgathered |> 
+  inner_join(thanksgiving, by="id") |> 
+  group_by(us_region) |> 
+  mutate(respondents=n_distinct(id)) |> 
+  count(us_region,respondents,type,value) |> 
+  ungroup() |> 
+  mutate(percent=n/respondents)
+
+food_reg |> 
+  filter(value=='apple') |> 
+  arrange(desc(percent))
+
+food_reg |> 
+  filter(value=='apple') |> 
+  arrange(desc(percent))
+
+foodgathered |> 
+  inner_join(thanksgiving, by="id") |> 
+  filter(prayer!="NA") |> 
+  group_by(type,value) |> 
+  summarize(prayer=sum(prayer=="yes"),
+            total=n(),
+            percent=prayer/total)
+
+
+```
+
+## Sides,pies and desserts that are eaten together
+
+```{r}
+foodcor <- foodgathered |> 
+  pairwise_cor(value,id, sort=T)
+
+foodcor |> 
+  filter(item1=="carrots")
+
+set.seed(2022)
+
+foodtypes <- foodgathered |> 
+  count(value,type,sort = T)
+
+foodcor |>
+  head(75) |> 
+  graph_from_data_frame(vertices=foodtypes) |> 
+  ggraph()+
+  geom_edge_link()+
+  geom_node_point(aes(color=type))+
+  geom_node_text(aes(label=name),vjust=1,hjust=1)+
+  theme_void()
+```

@@ -1,0 +1,153 @@
+---
+title: "Malaria incidence"
+format: html
+editor: visual
+---
+
+## 
+
+# lib
+
+```{r}
+install.packages("malariaAtlas")
+install.packages("rgdal")
+install.packages("formattable")
+library(ggrepel)
+library(formattable)
+library(rgdal)
+library(malariaAtlas)
+library(readxl)
+library(dplyr)
+library(tidyverse)
+library(scales)
+library(lubridate)
+library(plotly)
+```
+
+## data
+
+```{r}
+malaria <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2018/2018-11-13/malaria_inc.csv")
+
+pr <- (getPR(ISO="KEN", species = "BOTH"))
+ken_pr <- pr
+
+ken_pr <- ken_pr |> 
+  filter(!is.na(year_start),!is.na(longitude),!is.na(latitude))
+```
+
+## analyzing cleaning
+
+```{r}
+
+ken_pr_sum <- ken_pr |> 
+  group_by(year_start) |> 
+  summarise(examined=sum(examined),
+            positive=sum(positive),
+            sick=positive/examined,
+            studies=n())
+
+autoplot(pr)
+
+map_data("world") |> 
+  tbl_df() |> filter(region=="Kenya")
+
+
+
+#zaczynam obrabiac malarie z githuba
+malaria_inc_proc <- malaria_inc <- malaria |> 
+  setNames(c("country","code","year","incidence")) |> 
+  mutate(incidence=incidence/1000) |> 
+  filter(country!="Turkey", !is.na(code), !code=="") |> 
+  mutate(incidence=percent(incidence))
+
+percent(malaria_inc_proc$incidence)
+malaria_inc |> 
+  filter(country %in% sample(unique(country),6)) |> 
+  ggplot(aes(year,incidence,color=country))+
+  geom_line()+
+  scale_y_continuous(labels = percent_format())
+
+malaria_spread <- malaria_inc_proc |> 
+  filter(country!="Turkey", !is.na(code), !code=="") |> 
+  mutate(year=paste0("Y",year)) |> 
+  spread(year,incidence) |> 
+  mutate(current=(Y2015),
+         change=(Y2015-Y2000)) |> 
+  arrange(desc(change))
+malaria_spread |> 
+ggplot(aes(current,change))+
+  geom_text(aes(label=code), vjust=1,hjust=1)+
+  geom_point()+
+theme(legend.position = "none")
+
+#inner join tutaj wpisujemy sobie ze ma laczyc w taki sposob zeby wartosci z jednej kolumny code byly tozsame z wartosciami kolumny z drugiej ramki a3. bedzie nam laczyc tylko te rowy gdzie sie zgadza
+world <- map_data("world") |> 
+  filter(region!="Antarctica")
+
+malaria_spread |> 
+  inner_join(maps::iso3166 |> 
+               select(a3,mapname), by = c(code = "a3")) |> 
+ inner_join(world, by =  c(mapname = "region")) |> 
+  ggplot(aes(long,lat, group=group, fill=Y2015))+#always long on x and lat on y
+ geom_polygon()+
+   scale_fill_gradient2(low="blue", high = "red", midpoint = .2, labels=scales::percent_format())+
+  coord_map()+
+  theme_void()
+ #jak dajemy inner join w drugim zamiast right join i coordmap to mamy taki wykres skupiamy sie tylko na miejscach gdzie mamy dane plus nie ma bugu z coordmap
+
+malaria_spread |> 
+  inner_join(maps::iso3166 |> 
+               select(a3,mapname), by = c(code = "a3")) |> 
+ right_join(world, by =  c(mapname = "region")) |> 
+  ggplot(aes(long,lat, group=group, fill=Y2015))+#always long on x and lat on y
+ geom_polygon()+
+     scale_fill_gradient2(low="blue", high = "red", midpoint = .2, labels=scales::percent_format())+
+  theme_void()
+
+malaria_inc_proc|>
+  filter(incidence<1) |> 
+  inner_join(maps::iso3166 |> 
+               select(a3,mapname), by = c(code = "a3")) |> 
+ inner_join(world, by =  c(mapname = "region")) |> 
+  ggplot(aes(long,lat, group=group, fill=incidence))+#always long on x and lat on y
+ geom_polygon()+
+  facet_wrap(~year)+
+     scale_fill_gradient2(low="blue", high = "red", midpoint = .2, labels=scales::percent_format())+
+  coord_map()+
+  theme_void()
+```
+
+### first graph for kenya
+
+```{r}
+
+
+
+ken_pr |> 
+  group_by(year_start) |>
+  summarise(examined_sum=sum(examined)) |> 
+  mean(examined_sum)#ogolnie lipa wykres pokazuje ze czasem jest 100% ale w przypadkach ghdzie examined wynosi malo w chuj chcialem zsumowac examined i zobaczyc jaka jest mediana i na tej podstawie odsiac obserwacje o malych wartosciach dla examined ale mi sie nie chce i kurwa roboty a poza tym on tak nie zrobil a to madry chlopak
+
+ken_pr |> 
+  mutate(decade=10*(year_start%/%10)) |> 
+  arrange((pr)) |> 
+  ggplot(aes(longitude,latitude,color=pr))+
+  geom_point()+
+  coord_map()+
+  facet_wrap(~decade,2)+
+  borders("world", regions = "Kenya")+
+  theme_void()+
+  scale_color_gradient2(low="blue", high = "red", midpoint = .5, labels=scales::percent_format())
+#widzimy jakis dziki skok w 2000, zaraza czy po prostu wiecej obserwacji?
+
+fig_exam <- ken_pr |> 
+  group_by(year_start) |> 
+  summarise(examined=sum(examined),
+            positive=sum(positive),
+            sick=positive/examined,
+            studies=n()) |> 
+  ggplot(aes(year_start,examined, fill=sick))+
+  geom_col()
+ggplotly(fig_exam)
+```

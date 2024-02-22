@@ -1,0 +1,68 @@
+---
+title: "Analiza kierunków studiów pod względem zarobków w USA."
+author: "Chrostowski, Gras, Hytry"
+format: html
+editor: visual
+---
+
+## Wczytujemy biblioteki:
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(scales)
+library(htmlwidgets)
+library(lubridate)
+library(plotly)
+library(dplyr)
+
+```
+
+## Wczytujemy dane:
+
+```{r}
+grads<-read.csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/recent-grads.csv") |>
+  view()
+```
+
+## Analizuję pod względem czystości, błędów itp:
+
+```{r}
+grads |> 
+  select(everything()) |> 
+  summarise_all(funs(sum(is.na(.))))#sprawdzam czy jakieś wartości nie zostały podane
+grads |> 
+  filter(is.na(Total))#Kierunek FOOD SCIENCE nie posiada wszystkich danych potrzebnych do przeprowadzenia analizy, ponad to ma małą próbę badawczą.
+ 
+#nie wszystkie kierunki mają wystarczającą liczbę obserwacji, wybierzemy te, których liczba obserwacji jest równa lub większa od mediany liczby obserwacji
+  median(grads$Sample_size)
+  
+  grads_clean<-grads |> 
+    filter(Major!="FOOD SCIENCE", 
+           Sample_size>=130, 
+           Major==unique(Major)) |> 
+    mutate(jobratio=coll)
+    
+```
+
+## Analizujemy same dane:
+
+```{r}
+options(repr.plot.width=15, repr.plot.height=8)
+grads_clean |> 
+  arrange(desc(Median)) |> 
+  head(10) |> 
+  ggplot(aes(Major,Median,fill=Major_category))+
+  geom_col()+
+  scale_y_continuous(labels=dollar_format())+
+  coord_flip()+
+  labs(x="",y="Median of income")
+
+wykres<-grads_clean |> 
+  arrange(desc(Total)) |> 
+  head(50) |> 
+  ggplot(aes(Total,ShareWomen,color=Major_category, size=Median, labels=Major))+
+  geom_point()+
+  scale_x_log10()
+ggplotly(wykres)
+```

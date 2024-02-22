@@ -1,0 +1,81 @@
+---
+title: "Nigeria"
+format: html
+editor: visual
+---
+
+## pakiety
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(scales)
+library(plotly)
+library(countrycode)
+library(tidytuesdayR)
+library(ggthemes)
+library(ggmap)
+
+```
+
+## dane
+
+```{r}
+#
+water <- read.csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-05-04/water.csv")
+```
+
+```{r}
+water%>%
+  mutate(report_date = mdy(report_date)) %>%
+  rename(lat = lat_deg,
+         lon = lon_deg,
+         country = country_name) %>%
+  separate(water_tech, c("water_tech", "brand"), sep = " - ",
+           fill = "right") %>%
+  mutate(install_year = ifelse(install_year > 2021, NA_real_, install_year)) %>%
+  filter(!country %in% c("Peru", "Dominican Republic", "Timor-Leste"),
+         !is.na(country)) %>%
+  filter(between(lat, -35, 37),
+         between(lon, -40, 60))
+
+water_Nigeria <- water %>%
+  filter(country_name == "Nigeria")
+```
+
+```{r}
+countries <- unique(water$country_name)
+africa_map_data <- map_data("world") %>%
+  as_tibble() %>%
+  mutate(continent = countrycode(region, "country.name", "continent")) %>%
+  filter(continent == "Africa")
+```
+
+```{r}
+
+bbox <- c(left = 2, bottom = 4, right = 15, top = 14)
+Nigeria_map <- get_stamenmap(bbox, zoom = 8)
+
+water_Nigeria <- water_Nigeria |> mutate(rok=install_year)
+ 
+ggmap(Nigeria_map)+
+  geom_point(aes(lon_deg, lat_deg,color=rok),
+             data = water_Nigeria,
+             size = .1, alpha=.05) +
+labs(title = "Źródła wody Nigerii z uwzględnieniem roku instalacji",
+      caption = "Opracowanie własne na podstawie danych z Water Point Data Exchange (WPdx-Basic)",x="",y="")+
+  scale_color_gradient2(low = "red", high = "blue",
+                        midpoint = 2009,na.value = "grey",mid = "green",guide = "colourbar")
+ggsave(filename = "Nigeria",device = "png",dpi = 700,path =)
+
+
+
+```
+
+```{r}
+ggmap(Nigeria_map)+
+  geom_point(aes(lon_deg,lat_deg, color=rok),
+             data=water_Nigeria,
+             size=.1,alpha=0.5)
+```
