@@ -1,6 +1,6 @@
 ---
 title: "Analiza kierunków studiów pod względem zarobków w USA."
-author: "Chrostowski, Gras, Hytry"
+author: "Hytry"
 format: html
 editor: visual
 ---
