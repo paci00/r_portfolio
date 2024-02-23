@@ -1,0 +1,409 @@
+---
+title: "wynagrodzenia_statystyka"
+format: html
+editor: visual
+---
+
+# Biblioteki
+
+```{r}
+library(forecast)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(fpp2)
+library(forecast)
+library(lsr)
+library(forecast)
+library(MLmetrics)
+library(sciplot) 
+library(gplots)
+```
+
+## Statstos cz I
+
+### Dane
+
+```{r}
+#Prognoza przeciętnego wynagrodzenia na rok 2022-2023, w oparciu
+#o lata 2001:2021 (dane nie są tożsame z tymi z zajęć).
+
+wynagrodzenie <- read_excel("sciezka/wynagrodzenie.xlsx")
+#należy wpisać prawidłową ścieżkę
+wynagrodzenie <- wynagrodzenie |> select(-rok)
+```
+
+```{r}
+#konwersja zbioru danych do postaci szeregu czasowego
+wynagrodzenie_ts <- ts(wynagrodzenie, start=c(2001,1), frequency = 1)
+print(wynagrodzenie_ts, calendar = TRUE)
+
+#Podział zbioru danych na zbiór uczący (2001-2016) i testowy do prognoz (2017-2021)
+wynagrodzenie_learn <- window(wynagrodzenie_ts, end=c(2016,1)) #zbiór uczący
+print(wynagrodzenie_learn, calendar = TRUE)
+wynagrodzenie_test <- window(wynagrodzenie_ts, start=c(2017,1)) #zbiór testowy
+print(wynagrodzenie_test, calendar = TRUE)
+
+#WYZNACZANIE TRENDÓW
+#wprowadzenie zmiennej czasowej (na potrzeby trendów krzywoliniowych)
+t <- 1:16 #kolejne numery okresów
+t_2 <- t^2
+t_3 <- t^3
+t_4 <- t^4
+t_5 <- t^5
+t_ln <- log(t)
+```
+
+```{r}
+ #Trend liniowy
+wynagrodzenie_1st <- tslm(wynagrodzenie_learn ~ trend)
+summary(wynagrodzenie_1st)
+plot(wynagrodzenie_learn, main="Trend liniowy") #wykres pierwotnego szeregu
+lines(fitted(wynagrodzenie_1st), col="green") #dodanie do wykresu linii trendu
+
+#Wielomian stopnia drugiego
+wynagrodzenie_2st <- tslm(wynagrodzenie_learn ~ t+t_2)
+summary(wynagrodzenie_2st)
+plot(wynagrodzenie_learn, main="Wielomian stopnia drugiego")
+lines(fitted(wynagrodzenie_2st), col="green")
+
+#Wielomian stopnia trzeciego
+wynagrodzenie_3st <- tslm(wynagrodzenie_learn ~ t+t_2+t_3)
+summary(wynagrodzenie_3st)
+plot(wynagrodzenie_learn, main="Wielomian stopnia trzeciego")
+lines(fitted(wynagrodzenie_3st), col="green")
+
+#Wielomian stopnia czwartego
+wynagrodzenie_4st <- tslm(wynagrodzenie_learn ~ t+t_2+t_3+t_4)
+summary(wynagrodzenie_4st)
+plot(wynagrodzenie_learn, main="Wielomian stopnia czwartego")
+lines(fitted(wynagrodzenie_4st), col="green")
+
+#Wielomian stopnia piątego
+wynagrodzenie_5st <- tslm(wynagrodzenie_learn ~ t+t_2+t_3+t_4+t_5)
+summary(wynagrodzenie_5st)
+plot(wynagrodzenie_learn, main="Wielomian stopnia piątego")
+lines(fitted(wynagrodzenie_5st), col="green")
+
+#Trend logarytmiczny
+wynagrodzenie_log <- tslm(wynagrodzenie_learn ~ t_ln)
+summary(wynagrodzenie_log)
+plot(wynagrodzenie_learn, main="Trend logarytmiczny")
+lines(fitted(wynagrodzenie_log), col="green")
+
+
+#Trend wykładniczy y'=a*e^(a0*t)
+wynagrodzenie_wyk <- lm(log(wynagrodzenie_learn)~ t)
+summary(wynagrodzenie_wyk)
+#log(wynagrodzenie_learn) = 7.564396 + 0.048578*t
+#ustalamy współczynnik a w równaniu a*e^(a0*t)
+a_wyk <- exp(coef(wynagrodzenie_wyk)[1]) #funkcja coef podaje współczynniki wyznaczonego modelu; jedynka w nawiasie kwadratowym oznacza numer współczynnika (w tym przypadku wyraz wolny)
+a_wyk
+#obliczamy wartości teoretyczne, tworząc zbiór klasy ts
+wynagrodzenie_wyk2 <- ts(a_wyk*exp(coef(wynagrodzenie_wyk)[2]*t), start = 2001)
+print(wynagrodzenie_wyk2, calendar = TRUE)
+plot(wynagrodzenie_learn, main="Trend wykładniczy")
+lines(wynagrodzenie_wyk2, col="green")
+
+#Trend potęgowy y'=a*t^a0
+wynagrodzenie_pot <- tslm(log(wynagrodzenie_learn)~ t_ln)
+summary(wynagrodzenie_pot)
+#log(wynagrodzenie_learn) = 7.45020 + 0.27497*t_ln
+#ustalamy współczynnik a w równaniu a*t^a0
+a_pot <- exp(coef(wynagrodzenie_pot)[1])
+a_pot
+#obliczamy wartości teoretyczne, tworząc zbiór klasy ts
+wynagrodzenie_pot2 <- ts(a_pot*t^coef(wynagrodzenie_pot)[2], start = 2001)
+print(wynagrodzenie_pot2, calendar = TRUE)
+plot(wynagrodzenie_learn, main="Trend potęgowy")
+lines(wynagrodzenie_pot2, col="green")
+
+#wyznaczone trendy przedstawiamy na jednym wykresie
+plot(wynagrodzenie_learn, main="wynagrodzenie oraz dopasowane trendy")
+#linie poziome i pionowe:
+grid()
+#dodanie wyznaczonych linii trendu
+lines(fitted(wynagrodzenie_1st), col="green", lty=2) #funkcja lty oznacza styl linii
+lines(fitted(wynagrodzenie_2st), col="red", lty=2)
+lines(fitted(wynagrodzenie_3st), col="blue", lty=2)
+lines(fitted(wynagrodzenie_4st), col="yellow", lty=2)
+lines(fitted(wynagrodzenie_5st), col="grey", lty=2)
+lines(fitted(wynagrodzenie_log), col="pink", lty=2)
+lines(wynagrodzenie_wyk2, col="yellow4", lty=2)
+lines(wynagrodzenie_pot2, col="green4", lty=2)
+
+#dodanie legendy
+legend("topleft",
+       legend=c("dane empiryczne",
+                "liniowy",
+                "wielomian 2 stopnia",
+                "wielomian 3 stopnia",
+                "wielomian 4 stopnia",
+                "wielomian 5 stopnia",
+                "logarytmiczny",
+                "potęgowy",
+                "wykładniczy"),
+       col=c("black", "green", "red", "blue", "yellow", "grey", "pink", "green4","yellow4"),
+       lty=c(1,2,2,2,2,2,2,2,2))
+```
+
+### Prognozy
+
+```{r}
+#PROGNOZY
+
+#wprowadzamy wartości zmiennej t na okresy prognozowane (lata 2017-2021)
+t_prog <- 17:21
+t_prog_2 <- t_prog^2
+t_prog_3 <- t_prog^3
+t_prog_4 <- t_prog^4
+t_prog_5 <- t_prog^5
+t_prog_ln <- log(t_prog)
+
+#prognoza na podstawie trendu liniowego
+st_1_prognoza <- forecast(wynagrodzenie_1st, h=5)
+summary(st_1_prognoza)
+
+#prognoza na podstawie wielomianu 2 stopnia
+newtime_2 <- data.frame('t'=t_prog, 't_2'=t_prog_2) #nowe dane do modelu na potrzeby prognozy
+print(newtime_2)
+st_2_prognoza <- forecast(wynagrodzenie_2st, newtime_2)
+summary(st_2_prognoza)
+
+#prognoza na podstawie wielomianu 3 stopnia
+newtime_3 <- data.frame('t'=t_prog, 't_2'=t_prog_2, 't_3'=t_prog_3)
+print(newtime_3)
+st_3_prognoza <- forecast(wynagrodzenie_3st, newtime_3)
+summary(st_3_prognoza)
+
+#prognoza na podstawie wielomianu 4 stopnia
+newtime_4 <- data.frame('t'=t_prog, 't_2'=t_prog_2, 't_3'=t_prog_3, 't_4'=t_prog_4)
+print(newtime_4)
+st_4_prognoza <- forecast(wynagrodzenie_4st, newtime_4)
+summary(st_4_prognoza)
+
+#prognoza na podstawie wielomianu 5 stopnia
+newtime_5 <- data.frame('t'=t_prog, 't_2'=t_prog_2, 't_3'=t_prog_3, 't_4'=t_prog_4, 't_5'=t_prog_5)
+print(newtime_5)
+st_5_prognoza <- forecast(wynagrodzenie_5st, newtime_5)
+summary(st_5_prognoza)
+
+#prognoza na podstawie trendu logarytmicznego
+newtime_ln <- data.frame('t_ln'=t_prog_ln)
+log_prognoza <- forecast(wynagrodzenie_log, newtime_ln)
+summary(log_prognoza)
+
+#prognoza na podstawie trendu wykładniczego
+newtime_wyk <- data.frame('t'=t_prog)
+wyk_prognoza <- forecast(wynagrodzenie_wyk, newtime_wyk)
+wyk_prognoza
+wyk_prognoza2 <- ts(exp(wyk_prognoza$mean), start=2017)
+print(wyk_prognoza2, calendar=TRUE)
+
+#prognoza na podstawie trendu potęgowego
+pot_prognoza <- forecast(wynagrodzenie_pot, newtime_ln)
+pot_prognoza
+pot_prognoza2 <- ts(exp(pot_prognoza$mean), start=2017)
+print(pot_prognoza2, calendar=TRUE)
+```
+
+### Błędy prognozy
+
+```{r}
+#MAPE "na piechotę"
+mean(abs((wynagrodzenie_test-st_1_prognoza$mean)/wynagrodzenie_test))
+
+
+#błędy dla trendu liniowego
+RMSE_lin <- RMSE(y_pred = st_1_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_lin
+MAPE_lin <- MAPE(y_pred = st_1_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_lin
+
+#błędy dla wielomianu stopnia 2
+RMSE_2 <- RMSE(y_pred = st_2_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_2
+MAPE_2 <- MAPE(y_pred = st_2_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_2
+
+#błędy dla wielomianu stopnia 3
+RMSE_3 <- RMSE(y_pred = st_3_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_3
+MAPE_3 <- MAPE(y_pred = st_3_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_3
+
+#błędy dla wielomianu stopnia 4
+RMSE_4 <- RMSE(y_pred = st_4_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_4
+MAPE_4 <- MAPE(y_pred = st_4_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_4
+
+#błędy dla wielomianu stopnia 5
+RMSE_5 <- RMSE(y_pred = st_5_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_5
+MAPE_5 <- MAPE(y_pred = st_5_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_5
+
+#błędy dla trendu logarytmicznego
+RMSE_log <- RMSE(y_pred = log_prognoza$mean, y_true = wynagrodzenie_test)
+RMSE_log
+MAPE_log <- MAPE(y_pred = log_prognoza$mean, y_true = wynagrodzenie_test)
+MAPE_log
+
+#błędy dla trendu wykładniczego
+RMSE_wyk <- RMSE(y_pred = exp(wyk_prognoza$mean), y_true = wynagrodzenie_test)
+RMSE_wyk
+MAPE_wyk <- MAPE(y_pred = exp(wyk_prognoza$mean), y_true = wynagrodzenie_test)
+MAPE_wyk
+
+#błędy dla trendu potęgowego
+RMSE_pot <- RMSE(y_pred = exp(pot_prognoza$mean), y_true = wynagrodzenie_test)
+RMSE_pot
+MAPE_pot <- MAPE(y_pred = exp(pot_prognoza$mean), y_true = wynagrodzenie_test)
+MAPE_pot
+
+#zestawienie RMSE dla wszystkich modeli
+RMSE <- c(RMSE_lin, RMSE_2, RMSE_3, RMSE_4, RMSE_5, RMSE_log, RMSE_wyk, RMSE_pot)
+names(RMSE) <- c("liniowy", "2 stopień", "3 stopień", "4 stopień", "5 stopień", "logarytmiczny", "wykładniczy", "potęgowy")
+RMSE
+
+#zestawienie MAPE dla wszystkich modeli
+MAPE <- c(MAPE_lin, MAPE_2, MAPE_3, MAPE_4, MAPE_5, MAPE_log, MAPE_wyk, MAPE_pot)
+names(MAPE) <- c("liniowy", "2 stopień", "3 stopień", "4 stopień", "5 stopień", "logarytmiczny", "wykładniczy", "potęgowy")
+MAPE
+
+#wskazanie wartości minimalnych
+min(RMSE)
+min(MAPE)
+```
+
+### Prognoza na rok 2023
+
+```{r}
+#PROGNOZA NA ROK 2023
+
+#wyznaczenie parametrów dla wybranej na podstawie MAPE funkcji zlinearyzowanego trendu wykładniczego
+t_all <- 1:21
+wynagrodzenie_wyk_all <- lm(log(wynagrodzenie_ts)~ t_all)
+summary(wynagrodzenie_wyk_all)
+
+#wyznaczenie wartości na rok 2022 i 2023 na podstawie zlinearyzowanego trendu wykładniczego
+newtime_wyk_all <- data.frame('t_all'=22:23)
+newtime_wyk_all
+wyk_prognoza_all <- forecast(wynagrodzenie_wyk_all, newtime_wyk_all)
+summary(wyk_prognoza_all)
+
+#obliczenie wartości "odlinearyzowanych" 
+wyk_prognoza2_all <- ts(exp(wyk_prognoza_all$mean), start=2022)
+wyk_prognoza2_all
+print(wyk_prognoza2_all, calendar = TRUE)
+
+#ustalenie dolnej granicy przedziału ufności
+wyk_prognoza2_all_Lo_95 <- ts(exp(wyk_prognoza_all$lower[,2]), start=2022)
+print(wyk_prognoza2_all_Lo_95, calendar = TRUE)
+
+#ustalenie dolnej granicy przedziału ufności
+wyk_prognoza2_all_Up_95 <- ts(exp(wyk_prognoza_all$upper[,2]), start=2022)
+print(wyk_prognoza2_all_Up_95, calendar = TRUE)
+
+#stworzenie zestawienia wyników (macierz)
+wyniki_wyk <- matrix(c(wyk_prognoza2_all, wyk_prognoza2_all_Lo_95, wyk_prognoza2_all_Up_95), nrow=2, ncol = 3)
+rownames(wyniki_wyk) <- c("2022", "2023")
+colnames(wyniki_wyk) <- c("Point Forecast", "Lo 95", "Hi 95")
+wyniki_wyk
+
+#Prognozowana wartość na 2022 rok to 6024,81 i 6329,925 na 2023r.Prognoza z wykorzystaniem przedziałów ufności 0.95
+
+```
+
+## Statstos cz II
+
+### Dane
+
+```{r}
+#ramka jest domyślnie wbudowana
+iris <- iris
+```
+
+### Średnia i przedziały ufności
+
+```{r}
+mean(iris$Sepal.Length)
+ciMean(iris$Sepal.Length)#przedział ufności 95%
+
+M <- mean(iris$Sepal.Length)
+S <- sd(iris$Sepal.Length)
+L <- length(iris$Sepal.Length)
+
+M+qt(p=.025, df=L-1)*S/sqrt(L) #rozkład t-Studenta, dolna granica ci 
+M+qt(p=.975, df=L-1)*S/sqrt(L) #rozkład t-Studenta, górna granica ci 
+
+
+
+#Z 95% prawdopodobieństwem możemy oczekiwać iż średnia długość kielicha irysa będzie zawierać się w przedziale 5.709732 do 5.976934.
+
+```
+
+### Obliczenie jakości precyzji oszacowania parametru:
+
+```{r}
+(qt(p=.975, df=L-1)*S/sqrt(L)/M)*100
+#2.286381 mniejsze niż 5, wnioskuję że precyzja oszacowania parametru średniego w populacji jest dosyć wysoka
+```
+
+### Przedziały ufności na wykresie
+
+```{r}
+bargraph.CI( x.factor = iris$Species, # grouping variable 
+response = iris$Sepal.Length, # outcome variable 
+data = iris, # data with the variables 
+ci.fun= ciMean, # name of the function to calculate CIs 
+xlab = "gatunki irysów", # x-axis label 
+ylab = "długość kielicha") # y-axis label
+
+lineplot.CI( x.factor = iris$Species, # grouping variable 
+response = iris$Sepal.Length, # outcome variable 
+data = iris, # data with the variables 
+ci.fun= ciMean, # name of the function to calculate CIs 
+xlab = "gatunki irysów", # x-axis label 
+ylab = "długość kielicha") # y-axis label
+```
+
+```{r}
+#sprawdzam jak wygląda próba dla poszczególnych gatunków
+iris |> group_by(Species) |> 
+  summarise(n=n())
+```
+
+### Weryfikacja hipotez: #H0 : µsetosa = µvirginica
+
+```{r}
+#Średnia długość kielicha między setosą a virginicą nie różnią się istotnie.
+#Założenie to równość wariancji w populacji
+
+#H0 : µsetosa = µvirginica
+
+#H1 : µsetosa ≠ µvirginica
+
+iris_sv <- iris |> filter(Species=="setosa"|Species=="virginica")
+
+independentSamplesTTest(formula = Sepal.Length ~ Species, # formula specifying outcome and group variables 
+data = iris_sv, # data frame that contains the variables 
+var.equal = TRUE) # assume that the two groups have the same variance 
+
+t.test <- t.test(formula = Sepal.Length ~ Species, data = iris_sv, var.equal = TRUE)
+t.test
+
+#przedział ufności: 
+6.588-5.006   
+
+format(t.test$p.value,scientific = FALSE)
+
+#p.value<0.001 co oznacza że należy odrzucić hipotezę zerową na wszystkich poziomach
+
+qt( p = .975, df=999 )#wartość krytyczna dla testu dwustronnego na poziomie istotności α=.05
+#t = |-15.386||>1.962341  hipoteza zerowa jest odrzucona na wszystkich poziomach
+#Zatem na podstawie wyników p-value i t-test średnie długości kielichów dla gatunków virginica i setosa różnią się istotnie
+
+```
