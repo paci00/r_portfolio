@@ -47,7 +47,7 @@ bridges |>
   expand_limits(y=0)
 ```
 
-How does the condition of bridges depend on how old it is?
+##How does the condition of bridges depend on how old it is?
 
 ```{r}
 bridges |> 
@@ -128,7 +128,7 @@ bridges |>
 ```
 
 ```{r}
-#Mapy jebane
+##  maps
 bridges |> 
   ggplot(aes(long,lat,color=avg_daily_traffic))+
   borders("state",regions = "Maryland")+
