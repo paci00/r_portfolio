@@ -10,7 +10,21 @@
 -calculation of averages and confidence intervals for data.
 -calculation of quality of precision of parameter estimates.
 -verification of hypotheses: #H0 : µsetosa = µvirginica
+## used packages
+library(forecast)
+library(dplyr)
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(fpp2)
+library(forecast)
+library(lsr)
+library(forecast)
+library(MLmetrics)
+library(sciplot) 
+library(gplots)
 
+~400 lines of code
 
 
 # suicides_rates project
