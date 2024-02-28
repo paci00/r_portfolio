@@ -88,8 +88,6 @@ bridges |>
 #State Toll Authority is underperforming in comperison to other agencies.
 ```
 
-owner and responsibility pairs
-
 ```{r}
 bridges |>
   replace_na(list(responsibility="Other")) |> 
