@@ -27,6 +27,8 @@ library(gplots)
 ~400 lines of code
 
 # suicides_rates project
+Analyzing data on the suicide rate, looking for links to GDP per capita.   
+  
    -cleaning and transforming data    
    -creating a transposed data frame (date, country, gdp, sui, unm)   
    -maximum, minimum and average GDP pc and suicide rate for each year analyzed   
